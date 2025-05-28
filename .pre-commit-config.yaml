@@ -9,6 +9,7 @@ repos:
     - id: detect-private-key
       description: Checks for the existence of private keys.
     -   id: check-yaml
+        description: Checks YAML files for syntax errors.
 -   repo: https://github.com/psf/black
     rev: 24.4.2
     hooks:
