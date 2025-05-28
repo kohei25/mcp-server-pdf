@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import aiofiles
 import httpx
+import pymupdf4llm
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
@@ -55,7 +56,7 @@ def load_config(config_path: str = None):
 
 
 # MCPサーバーのインスタンスを作成
-server = Server("pdf-downloader")
+server = Server("pdf-processor")
 
 
 @server.list_tools()
@@ -85,6 +86,32 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="pdf_to_markdown",
+            description="PDFファイルをマークダウン形式に変換します。PyMuPDF4LLMを使用してテキスト、表、画像を含む高品質な変換を行います。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "pdf_path": {
+                        "type": "string",
+                        "description": "変換するPDFファイルのパス"
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": "出力するマークダウンファイルのパス（オプション）。指定しない場合はPDFと同じディレクトリに.mdファイルを作成"
+                    },
+                    "pages": {
+                        "type": "string",
+                        "description": "変換するページ範囲（例: '1-5', '1,3,5', 'all'）。デフォルトは'all'"
+                    },
+                    "extract_images": {
+                        "type": "boolean",
+                        "description": "画像を抽出するかどうか。デフォルトはtrue"
+                    }
+                },
+                "required": ["pdf_path"]
+            }
+        ),
+        Tool(
             name="get_download_config",
             description="現在のダウンロード設定を確認します",
             inputSchema={
@@ -101,10 +128,104 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """ツールの実行"""
     if name == "download_pdf":
         return await download_pdf_tool(arguments)
+    elif name == "pdf_to_markdown":
+        return await pdf_to_markdown_tool(arguments)
     elif name == "get_download_config":
         return await get_download_config_tool()
     else:
         raise ValueError(f"Unknown tool: {name}")
+
+
+async def pdf_to_markdown_tool(arguments: dict) -> list[TextContent]:
+    """PDFからマークダウンへの変換ツールの実装"""
+    pdf_path = arguments.get("pdf_path")
+    output_path = arguments.get("output_path")
+    pages = arguments.get("pages", "all")
+    extract_images = arguments.get("extract_images", True)
+    
+    if not pdf_path:
+        return [TextContent(type="text", text="エラー: PDFファイルのパスが指定されていません")]
+    
+    try:
+        # PDFファイルの存在確認
+        pdf_file = Path(pdf_path)
+        if not pdf_file.exists():
+            return [TextContent(type="text", text=f"エラー: PDFファイルが見つかりません: {pdf_path}")]
+        
+        if not pdf_file.suffix.lower() == '.pdf':
+            return [TextContent(type="text", text="エラー: 指定されたファイルはPDFファイルではありません")]
+        
+        # 出力パスの決定
+        if not output_path:
+            output_path = pdf_file.with_suffix('.md')
+        else:
+            output_path = Path(output_path)
+            # 出力ディレクトリが存在しない場合は作成
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # ページ範囲の解析
+        page_list = None
+        if pages and pages.lower() != "all":
+            try:
+                page_list = parse_page_range(pages)
+            except ValueError as e:
+                return [TextContent(type="text", text=f"エラー: ページ範囲の指定が無効です: {e}")]
+        
+        # PyMuPDF4LLMを使用してPDFをマークダウンに変換
+        markdown_text = pymupdf4llm.to_markdown(
+            str(pdf_file),
+            pages=page_list,
+            write_images=extract_images,
+            image_path=str(output_path.parent) if extract_images else None,
+            image_format="png",
+            dpi=150
+        )
+        
+        # マークダウンファイルに保存
+        async with aiofiles.open(output_path, 'w', encoding='utf-8') as f:
+            await f.write(markdown_text)
+        
+        # 統計情報の取得
+        line_count = len(markdown_text.split('\n'))
+        char_count = len(markdown_text)
+        file_size = output_path.stat().st_size
+        
+        result_text = f"PDFからマークダウンへの変換完了!\n"
+        result_text += f"入力ファイル: {pdf_file.absolute()}\n"
+        result_text += f"出力ファイル: {output_path.absolute()}\n"
+        result_text += f"変換ページ: {pages}\n"
+        result_text += f"画像抽出: {'有効' if extract_images else '無効'}\n"
+        result_text += f"出力統計:\n"
+        result_text += f"  - 行数: {line_count:,}\n"
+        result_text += f"  - 文字数: {char_count:,}\n"
+        result_text += f"  - ファイルサイズ: {file_size / 1024:.1f} KB"
+        
+        return [TextContent(type="text", text=result_text)]
+        
+    except Exception as e:
+        return [TextContent(type="text", text=f"エラー: PDFの変換中にエラーが発生しました: {str(e)}")]
+
+
+def parse_page_range(pages_str: str) -> list[int]:
+    """ページ範囲文字列を解析してページ番号のリストを返す"""
+    pages = []
+    
+    for part in pages_str.split(','):
+        part = part.strip()
+        if '-' in part:
+            # 範囲指定（例: "1-5"）
+            start, end = part.split('-', 1)
+            start = int(start.strip())
+            end = int(end.strip())
+            if start > end:
+                raise ValueError(f"無効な範囲: {part}")
+            pages.extend(range(start, end + 1))
+        else:
+            # 単一ページ（例: "3"）
+            pages.append(int(part))
+    
+    # 重複を除去してソート
+    return sorted(list(set(pages)))
 
 
 async def get_download_config_tool() -> list[TextContent]:
@@ -191,9 +312,17 @@ async def download_pdf_tool(arguments: dict) -> list[TextContent]:
                 counter += 1
         
         # PDFをダウンロード
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(
+            timeout=30.0,
+            follow_redirects=True,  # リダイレクトを自動追跡
+            max_redirects=10        # 最大リダイレクト回数
+        ) as client:
             response = await client.get(url)
             response.raise_for_status()
+            
+            # リダイレクト情報の取得
+            final_url = str(response.url)
+            redirect_count = len(response.history)
             
             # Content-Typeの確認
             content_type = response.headers.get('content-type', '').lower()
@@ -210,18 +339,31 @@ async def download_pdf_tool(arguments: dict) -> list[TextContent]:
         file_size = save_path.stat().st_size
         file_size_mb = file_size / (1024 * 1024)
         
-        return [TextContent(
-            type="text",
-            text=f"PDFダウンロード完了!\n"
-                 f"URL: {url}\n"
-                 f"保存先: {save_path.absolute()}\n"
-                 f"ファイルサイズ: {file_size_mb:.2f} MB"
-        )]
+        result_text = f"PDFダウンロード完了!\n"
+        result_text += f"元のURL: {url}\n"
+        if redirect_count > 0:
+            result_text += f"最終URL: {final_url}\n"
+            result_text += f"リダイレクト回数: {redirect_count}\n"
+        result_text += f"保存先: {save_path.absolute()}\n"
+        result_text += f"ファイルサイズ: {file_size_mb:.2f} MB"
+        
+        return [TextContent(type="text", text=result_text)]
         
     except httpx.HTTPStatusError as e:
+        error_msg = f"HTTPエラー: {e.response.status_code} - {e.response.reason_phrase}"
+        
+        # 301/302などのリダイレクトエラーの場合、追加情報を提供
+        if e.response.status_code in [301, 302, 303, 307, 308]:
+            location = e.response.headers.get('location', 'なし')
+            error_msg += f"\nリダイレクト先: {location}"
+            error_msg += f"\n注意: follow_redirects=Trueが設定されていますが、リダイレクトに失敗しました。"
+            error_msg += f"\nURLを確認するか、リダイレクト先のURLを直接使用してください。"
+        
+        return [TextContent(type="text", text=error_msg)]
+    except httpx.TooManyRedirects:
         return [TextContent(
             type="text",
-            text=f"HTTPエラー: {e.response.status_code} - {e.response.reason_phrase}"
+            text="エラー: リダイレクトが多すぎます。無限リダイレクトループの可能性があります。"
         )]
     except httpx.TimeoutException:
         return [TextContent(
