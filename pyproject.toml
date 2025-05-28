@@ -1,0 +1,9 @@
+[project]
+name = "mcp-server-pdf"
+version = "0.1.0"
+description = "PDFやPDFのウェブリンクを扱うmcpサーバー"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp[cli]>=1.9.1",
+]
