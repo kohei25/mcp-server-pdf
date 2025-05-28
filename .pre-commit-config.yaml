@@ -1,0 +1,22 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+    - id: trailing-whitespace
+      description: Trims trailing whitespace.
+    - id: end-of-file-fixer
+      description: Makes sure files end in a newline and only a newline.
+    - id: detect-private-key
+      description: Checks for the existence of private keys.
+    -   id: check-yaml
+        description: Checks YAML files for syntax errors.
+-   repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+    -   id: black
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+    -   id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+    -   id: ruff-format 
