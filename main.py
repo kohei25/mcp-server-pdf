@@ -390,5 +390,10 @@ async def main():
         )
 
 
+def main_sync():
+    """uvx用の同期エントリーポイント"""
+    asyncio.run(main())
+
+
 if __name__ == "__main__":
     asyncio.run(main())
