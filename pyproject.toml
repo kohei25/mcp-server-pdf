@@ -12,6 +12,9 @@ dependencies = [
     "pymupdf4llm>=0.0.24",
 ]
 
+[project.scripts]
+mcp-server-pdf = "main:main_sync"
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",

@@ -49,6 +49,8 @@ export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
 
 ### MCPサーバーとして実行
 
+#### uvコマンドで実行
+
 ```bash
 # 環境変数を設定して起動
 export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
@@ -58,7 +60,21 @@ uv run main.py
 uv run main.py /Users/username/Downloads/PDFs
 ```
 
+#### uvxコマンドで実行（推奨）
+
+```bash
+# 環境変数を設定して起動
+export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
+uvx --from . mcp-server-pdf
+
+# または、GitHubから直接実行
+export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
+uvx --from git+https://github.com/yourusername/mcp-server-pdf.git mcp-server-pdf
+```
+
 ### Claude for Desktopでの設定
+
+#### uvコマンドを使用する場合
 
 Claude for Desktopの設定ファイル（`claude_desktop_config.json`）に以下を追加：
 
@@ -69,6 +85,22 @@ Claude for Desktopの設定ファイル（`claude_desktop_config.json`）に以�
       "command": "uv",
       "args": ["run", "main.py"],
       "cwd": "/Users/niko/Dev/mcp-server-pdf",
+      "env": {
+        "PDF_DOWNLOAD_DIR": "/Users/niko/Downloads/PDFs"
+      }
+    }
+  }
+}
+```
+
+#### uvxコマンドを使用する場合（推奨）
+
+```json
+{
+  "mcpServers": {
+    "pdf-downloader": {
+      "command": "uvx",
+      "args": ["--from", "/Users/niko/Dev/mcp-server-pdf", "mcp-server-pdf"],
       "env": {
         "PDF_DOWNLOAD_DIR": "/Users/niko/Downloads/PDFs"
       }
