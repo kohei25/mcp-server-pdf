@@ -15,7 +15,11 @@ dependencies = [
 [project.scripts]
 mcp-server-pdf = "main:main_sync"
 
+[tool.pytest.ini_options]
+testpaths = ["."]
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
+    "pytest>=9.0.2",
 ]

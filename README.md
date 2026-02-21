@@ -5,45 +5,14 @@ PDFのリンクからPDFファイルをダウンロードするMCPサーバー�
 ## 機能
 
 - PDFのURLからファイルをダウンロード
-- 環境変数、設定ファイル、またはコマンドライン引数でダウンロードディレクトリを指定
+- ダウンロード先ディレクトリを指定可能（未指定時はカレントディレクトリに保存）
 - 自動的なファイル名生成（URLから抽出）
 - カスタムファイル名の指定
-- サブディレクトリでの整理
 - 既存ファイルの重複回避（自動リネーム）
+- PDFからMarkdownへの変換（PyMuPDF4LLM使用）
 - Content-Typeの検証
-- セキュリティ対策（パストラバーサル攻撃防止）
+- セキュリティ対策（SSRF防止）
 - エラーハンドリング
-
-
-## 設定
-
-### 環境変数（推奨）
-
-`PDF_DOWNLOAD_DIR` 環境変数でダウンロードディレクトリを指定できます：
-
-```bash
-export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
-```
-
-### 設定ファイル
-
-`config.json`ファイルを作成してダウンロード設定を管理できます：
-
-```json
-{
-  "download_base_dir": "/Users/username/Downloads/PDFs",
-  "allowed_subdirs": true
-}
-```
-
-**設定項目:**
-- `download_base_dir`: ダウンロードファイルの保存先ベースディレクトリ（環境変数が優先）
-- `allowed_subdirs`: サブディレクトリの作成を許可するか（true/false）
-
-**設定の優先順位:**
-1. 環境変数 `PDF_DOWNLOAD_DIR`
-2. コマンドライン引数
-3. 設定ファイル `config.json`
 
 ## 使用方法
 
@@ -52,23 +21,15 @@ export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
 #### uvコマンドで実行
 
 ```bash
-# 環境変数を設定して起動
-export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
 uv run main.py
-
-# または、コマンドライン引数でディレクトリを指定
-uv run main.py /Users/username/Downloads/PDFs
 ```
 
 #### uvxコマンドで実行（推奨）
 
 ```bash
-# 環境変数を設定して起動
-export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
 uvx --from . mcp-server-pdf
 
 # または、GitHubから直接実行
-export PDF_DOWNLOAD_DIR="/Users/username/Downloads/PDFs"
 uvx --from git+https://github.com/yourusername/mcp-server-pdf.git mcp-server-pdf
 ```
 
@@ -84,10 +45,7 @@ Claude for Desktopの設定ファイル（`claude_desktop_config.json`）に以�
     "pdf-downloader": {
       "command": "uv",
       "args": ["run", "main.py"],
-      "cwd": "/Users/niko/Dev/mcp-server-pdf",
-      "env": {
-        "PDF_DOWNLOAD_DIR": "/Users/niko/Downloads/PDFs"
-      }
+      "cwd": "/path/to/mcp-server-pdf"
     }
   }
 }
@@ -100,39 +58,24 @@ Claude for Desktopの設定ファイル（`claude_desktop_config.json`）に以�
   "mcpServers": {
     "pdf-downloader": {
       "command": "uvx",
-      "args": ["--from", "/Users/niko/Dev/mcp-server-pdf", "mcp-server-pdf"],
-      "env": {
-        "PDF_DOWNLOAD_DIR": "/Users/niko/Downloads/PDFs"
-      }
+      "args": ["--from", "/path/to/mcp-server-pdf", "mcp-server-pdf"]
     }
   }
 }
 ```
 
-または、設定ファイルのみを使用する場合：
-
-```json
-{
-  "mcpServers": {
-    "pdf-downloader": {
-      "command": "uv",
-      "args": ["run", "main.py"],
-      "cwd": "/Users/niko/Dev/mcp-server-pdf"
-    }
-  }
-}
-```
+`cwd` を設定すると、`download_dir` 未指定時のデフォルト保存先がそのディレクトリになります。
 
 ## 利用可能なツール
 
 ### download_pdf
 
-PDFのURLからファイルをダウンロードします。設定されたベースディレクトリ以下に保存されます。
+PDFのURLからファイルをダウンロードします。
 
 **パラメータ:**
 - `url` (必須): ダウンロードするPDFのURL
-- `filename` (オプション): 保存するファイル名
-- `subdir` (オプション): ベースディレクトリ以下のサブディレクトリ名
+- `filename` (オプション): 保存するファイル名。指定しない場合はURLから自動生成
+- `download_dir` (オプション): 保存先ディレクトリのパス。指定しない場合はカレントディレクトリに保存
 
 **使用例:**
 
@@ -144,9 +87,15 @@ PDFをダウンロードしてください: https://example.com/document.pdf
 PDFをダウンロードして、"research_paper.pdf"という名前で保存してください: https://example.com/paper.pdf
 ```
 
-```
-PDFをダウンロードして、~/Downloads/に保存してください: https://example.com/document.pdf
-```
+### pdf_to_markdown
+
+PDFファイルをMarkdown形式に変換します。
+
+**パラメータ:**
+- `pdf_path` (必須): 変換するPDFファイルのパス
+- `output_path` (オプション): 出力するMarkdownファイルのパス。指定しない場合はPDFと同じディレクトリに.mdファイルを作成
+- `pages` (オプション): 変換するページ範囲（1始まり。例: '1-5', '1,3,5', 'all'）。デフォルトは'all'
+- `extract_images` (オプション): 画像を抽出するかどうか。デフォルトはtrue
 
 ## 技術仕様
 
@@ -154,6 +103,7 @@ PDFをダウンロードして、~/Downloads/に保存してください: https:
 - MCP (Model Context Protocol) 1.9.1+
 - httpx for HTTP requests
 - aiofiles for async file operations
+- PyMuPDF4LLM for PDF to Markdown conversion
 
 ## エラーハンドリング
 
@@ -162,6 +112,7 @@ PDFをダウンロードして、~/Downloads/に保存してください: https:
 - タイムアウト
 - ファイル保存エラー
 - Content-Type検証
+- SSRF防止（プライベートネットワークへのアクセスブロック）
 
 ## ライセンス
 
