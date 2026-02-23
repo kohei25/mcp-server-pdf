@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp-server-pdf = "main:main_sync"
+mcp-server-pdf = "mcp_server_pdf.__main__:main_sync"
 
 [tool.pytest.ini_options]
 testpaths = ["."]

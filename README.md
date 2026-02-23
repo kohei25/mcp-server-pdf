@@ -21,7 +21,7 @@ PDFのリンクからPDFファイルをダウンロードするMCPサーバー�
 #### uvコマンドで実行
 
 ```bash
-uv run main.py
+python -m mcp_server_pdf
 ```
 
 #### uvxコマンドで実行（推奨）
@@ -43,8 +43,8 @@ Claude for Desktopの設定ファイル（`claude_desktop_config.json`）に以�
 {
   "mcpServers": {
     "pdf-downloader": {
-      "command": "uv",
-      "args": ["run", "main.py"],
+      "command": "python",
+      "args": ["-m", "mcp_server_pdf"],
       "cwd": "/path/to/mcp-server-pdf"
     }
   }
